@@ -78,7 +78,7 @@ while True:
 
 
     elif len(currentResolution) > 1:
-        print("hostname "+targetMachine+" Resolving to multiple ips:")
+        print("hostname "+targetMachine+" Resolving to multiple ips:\n")
         for ip in currentResolution:
             print(ip)
         print('\n\n\nPing testing resolved IPs...\n')
