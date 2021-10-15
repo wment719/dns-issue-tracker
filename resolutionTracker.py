@@ -124,11 +124,11 @@ while True:
             else:
                 print(ip+" is NOT pinging. last successful ping was at "+pingResults[1])
 
-        #screen color casing for instances with multiple resolved IPs that are pinging
-        if pingingIPs == 0 :
+        #screen color casing for instances with multiple resolved IPs
+        if len(pingingIPs) == 0 :
             system("color 40")
             statusUpdate('not pinging multiple')
-        elif pingingIPs == 1 :
+        elif len(pingingIPs) == 1 :
             if rightAddressPinging: 
                 system("color 20")
                 statusUpdate('pinging expected, multiple resolved')
@@ -136,7 +136,7 @@ while True:
                 system("color 30")
                 print("Pinging different ip than expected:\n    (expected)"+rightIP+"\n    (currently resolving and pinging)"+currentResolution[0])
                 statusUpdate('pinging UNexpected')
-        elif pingingIPs > 1 :
+        elif len(pingingIPs) > 1 :
             if pingingIPs.count(rightIP): 
                 system("color 20")
                 print("Pinging correct IP and unexpected IP(s). See above for details")
@@ -152,6 +152,6 @@ while True:
     if firstrun:
         sleep(1)
     else:
-        sleep(15)
+        sleep(5)
     system('cls')
     firstrun=False
