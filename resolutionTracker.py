@@ -111,7 +111,6 @@ while True:
 
     elif len(currentResolution) > 1:
         pingingIPs=[]
-        rightAddressPinging=False
         print("hostname "+targetMachine+" Resolving to multiple ips:\n")
         for ip in currentResolution:
             print("    "+ip)
@@ -129,7 +128,7 @@ while True:
             system("color 40")
             statusUpdate('not pinging multiple')
         elif len(pingingIPs) == 1 :
-            if rightAddressPinging: 
+            if pingingIPs.count(rightIP): 
                 system("color 20")
                 statusUpdate('pinging expected, multiple resolved')
             else:
