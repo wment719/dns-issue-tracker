@@ -59,6 +59,8 @@ def determineNSResolution():
     currentResolution = (addresses)
 
 status=('firstrun',currentTime())
+dhcptask=()
+
 def statusUpdate(newStatus):
     global status
     if newStatus != status[0]:
