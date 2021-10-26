@@ -36,6 +36,7 @@ def determinePinging(targetIP):
         return True,None
     else:
         for knownIP in trackedIPs:
+            lastping = 'never'
             if knownIP['Address'] == targetIP:  
                 lastping=knownIP['LastPinged']
         return False, lastping
@@ -88,6 +89,10 @@ while True:
         print("hostname "+targetMachine+" is not resolving to any ip addresses")
         system("color 40")
         statusUpdate('NoForward')
+        if determinePinging(rightIP)[0]:
+            print("\n However, "+str(rightIP)+" is pinging")
+        else:
+            print("\n"+str(rightIP)+" is also NOT pinging")
 
     elif len(currentResolution) == 1:
         print("hostname "+targetMachine+" Resolving to "+currentResolution[0]+", pinging...\n")
@@ -98,17 +103,26 @@ while True:
                 system("color 20")
                 statusUpdate('pinging expected')
             else:
-                if currentResolution.count(rightIP):
-                    note0="resolving, "
+                if determinePinging(rightIP)[0]:
+                    print("Different ip than expected is resolving and pinging:\n    "+rightIP+" (expected, not resolving, is pinging)\n    "+currentResolution[0]+" (currently resolving and pinging)")
                 else:
-                    note0="not resolving, "
-                print("Pinging different ip than expected:\n    "+rightIP+"(expected, "+note0+"not pinging)\n    "+currentResolution[0]+"(currently resolving and pinging)")
-                system("color 30")
-                statusUpdate('pinging UNexpected')
+                    print("Different ip than expected is resolving and pinging:\n    "+rightIP+" (expected, not resolving, not pinging)\n    "+currentResolution[0]+" (currently resolving and pinging)")
+                statusUpdate('Resolving different, pinging')
         else:
-            print(currentResolution[0]+" is NOT pinging. last successful ping was at "+pingResults[1])   
-            system("color 40")
-            statusUpdate('not pinging')
+            if currentResolution[0] != rightIP:
+                print(currentResolution[0]+" is NOT pinging. last successful ping was at "+pingResults[1])
+                if determinePinging(rightIP)[0]:
+                    print("Expected IP is pinging\n    "+rightIP+" (expected, not resolving, is pinging)\n    "+currentResolution[0]+" (currently resolving but not pinging)")
+                    system("color 60")
+                    statusUpdate("not pinging resolved. pinging expected.")
+                else:
+                    print("Expected IP is not pinging\n    "+rightIP+" (expected, not resolving, not pinging)\n    "+currentResolution[0]+" (currently resolving but not pinging)")
+                    system("color 40")
+                    statusUpdate('not pinging')
+            else:
+                print("Expected IP is resolving but not pinging\n    "+rightIP+" (expected, resolving, not pinging)\n")
+                system("color 40")
+                statusUpdate('expected resolving but not pinging')
 
     elif len(currentResolution) > 1:
         pingingIPs=[]
