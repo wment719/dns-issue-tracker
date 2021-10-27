@@ -105,9 +105,12 @@ while True:
             else:
                 if determinePinging(rightIP)[0]:
                     print("Different ip than expected is resolving and pinging:\n    "+rightIP+" (expected, not resolving, is pinging)\n    "+currentResolution[0]+" (currently resolving and pinging)")
+                    system("color 30")
+                    statusUpdate('Resolving & pinging different, pinging expected')
                 else:
                     print("Different ip than expected is resolving and pinging:\n    "+rightIP+" (expected, not resolving, not pinging)\n    "+currentResolution[0]+" (currently resolving and pinging)")
-                statusUpdate('Resolving different, pinging')
+                    system("color 30")
+                    statusUpdate('Resolving and pinging different')
         else:
             if currentResolution[0] != rightIP:
                 print(currentResolution[0]+" is NOT pinging. last successful ping was at "+pingResults[1])
