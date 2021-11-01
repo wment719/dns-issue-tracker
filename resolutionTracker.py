@@ -59,6 +59,18 @@ def determineNSResolution():
                 trackedIPs.append({'Address':justSeenIP, 'LastResolved':currentTime(), 'LastPinged':'never'})
     currentResolution = (addresses)
 
+def checkReverse():
+    global currentResolution
+    global reverseResolution
+    reverseList = []
+    for ip in currentResolution:
+        if str(check_output('nslookup '+ip).upper()).count(targetMachine.upper()):
+            reverseList.append((ip, True))
+        else:
+            reverseList.append((ip, False))
+    reverseResolution = reverseList
+            
+
 status=('firstrun',currentTime())
 
 def statusUpdate(newStatus):
@@ -72,8 +84,6 @@ def statusUpdate(newStatus):
         pass
 
 
-
-
 #Begin Main loop
 
 while True:
@@ -82,6 +92,12 @@ while True:
         for item in trackedIPs:
             print(item['Address']+'\n    last ping: '+item['LastPinged']+'\n    last dns:  '+item['LastResolved'])
         print('\n\n\nCURRENT RESULTS:')
+        print('Reverse:')
+        checkReverse()
+        for item in reverseResolution:
+            print(item[0]+' - '+str(item[1]))
+    else:
+        pass
 
     determineNSResolution()
 
@@ -132,7 +148,7 @@ while True:
         print("hostname "+targetMachine+" Resolving to multiple ips:\n")
         for ip in currentResolution:
             print("    "+ip)
-        print('\n\n\nPing testing resolved IPs...\n')
+        print('\n********************  Ping testing resolved IPs...\n')
         for ip in currentResolution:
             pingResults=determinePinging(ip)
             if pingResults[0]:
