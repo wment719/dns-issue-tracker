@@ -64,10 +64,14 @@ def checkReverse():
     global reverseResolution
     reverseList = []
     for ip in currentResolution:
-        if str(check_output('nslookup '+ip).upper()).count(targetMachine.upper()):
-            reverseList.append((ip, True))
-        else:
+        try:
+            if str(check_output('nslookup '+ip).upper()).count(targetMachine.upper()):
+                reverseList.append((ip, True))
+            else:
+                reverseList.append((ip, False))
+        except:
             reverseList.append((ip, False))
+
     reverseResolution = reverseList
             
 
