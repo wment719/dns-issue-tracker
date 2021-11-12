@@ -35,8 +35,8 @@ def determinePinging(targetIP):
                 knownIP['LastPinged'] = currentTime()
         return True,None
     else:
+        lastping = 'never'
         for knownIP in trackedIPs:
-            lastping = 'never'
             if knownIP['Address'] == targetIP:  
                 lastping=knownIP['LastPinged']
         return False, lastping
