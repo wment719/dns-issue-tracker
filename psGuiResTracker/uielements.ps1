@@ -63,10 +63,10 @@ $goButton.Add_Click({
     }
     $msgBox.Text = $errMsg
     if(($nonEmptyFields -eq $inputFields.length) -and ($ipTBox.Text)){
-        $Global:userName = $usernameTBox.text; $Global:targetMachine = $hostnameTBox.Text; $Global:rightIP = $ipTBox.Text
-        $form0.Text=$userName+" at "+$targetMachine+"  expected IP: "+$rightIP
+        $global:currentState.targetUsername = $usernameTBox.text; $global:currentState.targetMachine = $hostnameTBox.Text; $global:currentState.expectedIP = $ipTBox.Text
+        $form0.Text=$usernameTBox.Text+" at "+$hostnameTBox.Text+"  expected IP: "+$ipTBox.Text
         $timer.Enabled = $True
-        $goButton.Visible = $false
+        $goButton.Text = "update"
     }
 })
 $form0.Controls.Add($goButton)
