@@ -31,10 +31,12 @@ function checkReverse($ipToCheck, $correctHostnmae) {
     else{return $false}
 }
 function determineNSResolution($inputState) {
-    $modifiedState = $inputState
+    $modifiedState = ConvertFrom-Json $inputState
     $newIPs = @()
     $lookupResults = (Resolve-DnsName $modifiedState.targetMachine)
     foreach ($previouslySeenIP in $modifiedState.ipList){
+        write-host $previouslySeenIP.gettype()
+        write-host $previouslySeenIP
         $previouslySeenIP.isResolvingFWD = $false
     }
     foreach ($record in $lookupResults){
@@ -52,11 +54,6 @@ function determineNSResolution($inputState) {
             }
             if($unique){
                 $newIPs += $record.IPAddress
-                #$newIPObject = [trackedIP]::new()
-                #$newIPObject.isResolvingFWD = $True
-                #$newIPObject.lastResFWD = (Get-Date -DisplayHint Time).tostring()
-                #$newIPObject.ip = $record.IPAddress
-                #$modifiedState.ipList += $newIPObject
             }
             
         }
@@ -76,6 +73,7 @@ function determineNSResolution($inputState) {
             #else {$previouslySeenIP.isResolvingREV = $false}
         }
     }
+
     return @($modifiedState, $newIPs)
 }
 function formatOutput($inputState) {
@@ -95,6 +93,8 @@ function formatOutput($inputState) {
         }
     }
 }
+
+
 $addFunctions= [scriptblock]::Create(@"
     function determinePinging { $Function:determinePinging }
     function determineNSResolution { $Function:determineNSResolution }
@@ -109,12 +109,14 @@ $global:currentState.ipList = @()
 $timer.Interval = 1000
 $timer.Add_Tick({
     if (-not (Get-job)) {
-        $global:nsresjob = Start-Job -InitializationScript $addFunctions -ScriptBlock {param($inputObject) determineNSResolution $inputObject} -ArgumentList $global:currentState
+        $jsonState=ConvertTo-Json $global:currentState 
+        $global:nsresjob = Start-Job -InitializationScript $addFunctions -ScriptBlock {param($inputObject) determineNSResolution $inputObject} -ArgumentList $jsonState
     }
     elseif ((Get-Job) -and ((Get-Job)[0].state -like "Completed")){
         Receive-Job -job $global:nsresjob -OutVariable newState
         $global:currentState = $newState[0]
         foreach($newip in $newState[1]){
+            Write-Host $newip +" in new ip list"
             $newIPObject = [trackedIP]::new()
             $newIPObject.isResolvingFWD = $True
             $newIPObject.lastResFWD = (Get-Date -DisplayHint Time).tostring()
