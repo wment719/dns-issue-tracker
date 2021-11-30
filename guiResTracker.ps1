@@ -1,185 +1,157 @@
-### Function and variable definitions
-
-$me=(whoami)[7..(whoami).length] -join ''
+#Import-Module -Force $PSScriptRoot\uielements.ps1
+Import-Module -Force "C:\Users\wmiller\OneDrive - Ent Credit Union\utilities\uielements.ps1"
 $IPPattern = "^([1-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(\.([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])){3}$"
-$trackedIPs = @()
+
+class trackedIP {
+    [string]$ip
+    [bool]$isResolvingFWD
+    [bool]$isResolvingREV
+    [bool]$isPinging
+    [string]$lastResFWD
+    [string]$lastResREV
+    [string]$lastPing
+}
+class monitorState {
+    [array]$ipList
+    [string]$operatorUsername
+    [string]$targetMachine
+    [string]$expectedIP
+    [string]$targetUsername
+}
 function determinePinging($targetIP) {
     if ((test-connection $targetIP -count 1 -quiet) -or (test-connection $targetIP -count 1 -quiet)) {
-        foreach ($knownIP in $trackedIPs){
-            if ($knownIP.Address -eq $targetIP){
-                $knownIP.LastPinged = (Get-Date -DisplayHint Time).tostring()
-            }
-        }
-        return @(1,'None')
+        return $true
     }
-    else{
-        $lastping = 'Never'
-        foreach ($knownIP in $trackedIPs){
-            if ($knownIP.Address -eq $targetIP){
-                $lastping = $knownIP.LastPinged
-            }
-        }
-        return @(0, $lastping)
-    }
+    else{return $false}
 }
-
-function determineNSResolution($hostnameToResolve) {
-    $addresses = @()
-    $lookupResults = (Resolve-DnsName $hostnameToResolve)
+function checkReverse($ipToCheck, $correctHostnmae) {
+    if((Resolve-DnsName $ipToCheck).NameHost.tolower().contains($correctHostnmae.ToLower())){
+        return $true
+    }
+    else{return $false}
+}
+function determineNSResolution($inputState) {
+    $modifiedState = ConvertFrom-Json $inputState
+    $newIPs = @()
+    $lookupResults = (Resolve-DnsName $modifiedState.targetMachine)
+    foreach ($previouslySeenIP in $modifiedState.ipList){
+        $previouslySeenIP.isResolvingFWD = $false
+    }
     foreach ($record in $lookupResults){
         if($record.Type -eq 'A'){
-            $addresses += $record.IPAddress
+            $unique = $true
+            foreach ($previouslySeenIP in $modifiedState.ipList){
+                if ($record.IPAddress -eq $previouslySeenIP.ip){
+                    $previouslySeenIP.isResolvingFWD = $True
+                    $previouslySeenIP.lastResFWD = (Get-Date -format "hh:mmtt")
+                    $unique = $false
+                }
+            }
+            if($unique){
+                $newIPs += $record.IPAddress
+            }
+            
         }
     }
-    foreach ($justSeenIP in $addresses){
-        $unique = 1
-        foreach ($knownIP in $trackedIPs){
-            if ($knownIP.Address -eq $justSeenIP){
-                $knownIP.LastResoled = (Get-Date -DisplayHint Time).tostring()
-                $unique = 0
+    foreach ($previouslySeenIP in $modifiedState.ipList){
+        if ($previouslySeenIP.isResolvingFWD -or ($previouslySeenIP.ip -eq $modifiedState.expectedIP)){
+            if (determinePinging($previouslySeenIP.ip)){
+                $previouslySeenIP.isPinging = $true
+                $previouslySeenIP.LastPing  = (Get-Date -format "hh:mmtt")
             }
-            if ($unique){
-                $trackedIPs += @{Address = $justSeenIP; LastResolved = (Get-Date -DisplayHint Time).tostring(); LastPinged = "Never" }
-            }
+            else{$previouslySeenIP.isPinging = $false}
+
+            #if(checkReverse($previouslySeenIP.ip, $modifiedState.targetMachine)){
+            #    $previouslySeenIP.isResolvingREV = $true
+            #    $previouslySeenIP.lastResREV = (Get-Date -format "hh:mmtt")
+            #}
+            #else {$previouslySeenIP.isResolvingREV = $false}
         }
     }
-    return $addresses
+
+    return @($modifiedState, $newIPs)
+}
+function formatOutput($inputState) {
+    $msgbox.Text = ""
+    foreach ($trackedIP in $inputState.ipList){
+        $line = ""
+        if($trackedIP.isResolvingFWD -or ($trackedIP.ip -eq $inputState.expectedIP)){
+            if($msgBox.Text){$line+="`n`n"}
+            $line += ($trackedIP.ip+"  forward:")
+            if($trackedIP.isResolvingFWD){$line += "GOOD"}
+            else{$line += "BAD"}
+            $line += "    (last resolved "+$trackedIP.lastResFWD+")"
+            $line += "`n    [last pinged - "+$trackedIP.LastPing+" ]"
+            $line += "`n reverse: "
+            if($trackedIP.isResolvingREV){$line += "GOOD"}
+            else{$line += "BAD"}
+            $line += "    (last "+$trackedIP.lastResREV+")"
+            $msgBox.Text += $line
+        }
+    }
 }
 
-function checkReverse() {
-    $reverseList = @()
-    foreach ($ip in $currentResolution){
-        if((Resolve-DnsName $ip).NameHost.tolower().contains($targetMachine.ToLower())){
-            $reverseList += @($ip, 1)
-        }
-        else {
-            $reverseList += @($ip, 0)
-        }
-    } 
-    $Global:reverseResolution = $reverseList   
+function statusUpdate($inputState) {
+    $resolvingCount=0
+    $pingingCount=0
+    $resolveAndPingCount=0
+    foreach($trackedIP in $inputState.iplist){
+        if($trackedIP.isResolvingFWD){$resolvingCount += 1}
+        if($trackedIP.isPinging){$resolvingCount += 1}
+        if($trackedIP.isResolvingFWD -and $trackedIP.isPinging){$resolveAndPingCount += 1}
+    if($resolveAndPingCount){
+        $form0.BackColor="green"
+    }
+    }
 }
 
-function mainCycle ($hostnameToResolve) {
-    return determineNSResolution($hostnameToResolve)
-}
 
 $addFunctions= [scriptblock]::Create(@"
-    Function determinePinging { $Function:determinePinging }
+    function determinePinging { $Function:determinePinging }
     function determineNSResolution { $Function:determineNSResolution }
     function checkReverse { $Function:checkReverse }
-    function mainCycle { $Function:mainCycle }
 "@)
-#$status = @("firstrun", (Get-Date -DisplayHint Time).tostring())
-    #
-    #function statusUpdate($newStatus){
-    #    if ($newStatus -ne $Global:status){
-    #        $host.ui.rawui.windowtitle = $targetMachine+" "+$userName+" "+$newStatus
-    #        if($Global:status -ne 'firstrun'){
-    #            msg me $userName+" at "+$targetMachine+"
-    #            old status [since "+$Global:status[1]+"] "+$Global:status[0]+"
-    #            new status [since "+(Get-Date -DisplayHint Time).tostring()+"] "+$newStatus
-    #        }
-    #        $Global:status = ($newStatus, (Get-Date -DisplayHint Time).tostring())
-    #    }
-    #}
-#
 
+#main script
+$global:currentState = [monitorState]::new()
+$global:currentState.operatorUsername = (whoami)[7..(whoami).length] -join ''
 
-###Set up UI elements
-Add-Type -assembly System.Windows.Forms
-
-
-$form0 = New-Object System.Windows.Forms.Form
-$form0.Width = 400; $form0.Height = 400
-$form0.Text = "Enter user info"
-
-$label0 = New-Object System.Windows.Forms.Label
-$label0.Text = "User's Name"; $label0.AutoSize = $true
-$label0.Location = New-Object System.Drawing.Point(30, 5)
-$form0.Controls.Add($label0)
-
-$usernameTBox = New-Object System.Windows.Forms.TextBox
-$usernameTBox.AutoSize = $true
-$usernameTBox.Location = New-Object System.Drawing.Point(5, 25)
-$usernameTBox.Size = New-Object System.Drawing.Size(120,25)
-$form0.Controls.Add($usernameTBox)
-###
-$label1 = New-Object System.Windows.Forms.Label
-$label1.Text = "Hostname"; $label1.AutoSize = $true
-$label1.Location = New-Object System.Drawing.Point(155, 5)
-$form0.Controls.Add($label1)
-
-$hostnameTBox = New-Object System.Windows.Forms.TextBox
-$hostnameTBox.AutoSize = $true
-$hostnameTBox.Location = New-Object System.Drawing.Point(130, 25)
-$hostnameTBox.Size = New-Object System.Drawing.Size(120,25)
-$form0.Controls.Add($hostnameTBox)
-###
-$label2 = New-Object System.Windows.Forms.Label
-$label2.Text = "IP Address"; $label2.AutoSize = $true
-$label2.Location = New-Object System.Drawing.Point(280, 5)
-$form0.Controls.Add($label2)
-
-$ipTBox = New-Object System.Windows.Forms.TextBox
-$ipTBox.AutoSize = $true;
-$ipTBox.Location = New-Object System.Drawing.Point(255, 25)
-$ipTBox.Size = New-Object System.Drawing.Size(120,25)
-$form0.Controls.Add($ipTBox)
-###
-
-###
-
-$goButton = New-Object System.Windows.Forms.Button
-$goButton.Location = New-Object System.Drawing.Point(140,55)
-$goButton.Size = New-Object System.Drawing.Size(100,25)
-$goButton.Text = "Start"
-$goButton.Add_Click({
-    $inputFields = @($usernameTBox.Text, $hostnameTBox.Text, $ipTBox.Text)
-    $nonEmptyFields = 0
-    $goodIP = $false
-    $errMsg=""
-    foreach ($text in $inputFields){
-        if ($text){$nonEmptyFields+=1}
-    }
-    if($nonEmptyFields -lt $inputFields.length){
-        $errMsg += "Missing an input "
-    }
-    if(($ipTBox.Text -notmatch $IPPattern) -and ($ipTBox.Text)){
-        if($errMsg){$errMsg+="and "}
-        $errMsg += "Bad IP "
-        $ipTBox.Text = ""
-    }
-    $msgBox.Text = $errMsg
-    if(($nonEmptyFields -eq $inputFields.length) -and ($ipTBox.Text)){
-        $Global:userName = $usernameTBox.text; $Global:targetMachine = $hostnameTBox.Text; $Global:rightIP = $ipTBox.Text
-        $form0.Text=$userName+" at "+$targetMachine+"  expected IP: "+$rightIP
-        $timer.Enabled = $True
-        $goButton.Visible = $false
-    }
-})
-$form0.Controls.Add($goButton)
-
-$msgBox = New-Object System.Windows.Forms.Label
-$msgBox.Text = ""; $msgBox.AutoSize = $false
-$msgBox.Location = New-Object System.Drawing.Point(5, 85)
-$msgBox.Size = New-Object System.Drawing.Size(375,25)
-$msgBox.TextAlign ="MiddleCenter"
-$form0.Controls.Add($msgBox)
-
-$timer = New-Object System.Windows.Forms.Timer
-$timer.Interval = 1000
+$timer.Interval = 150
 $timer.Add_Tick({
     if (-not (Get-job)) {
-        $global:nsresjob = Start-Job -InitializationScript $addFunctions -ScriptBlock {param($targetMachine) mainCycle $targetMachine} -ArgumentList $targetMachine        
+        $jsonState=ConvertTo-Json $global:currentState 
+        $global:nsresjob = Start-Job -InitializationScript $addFunctions -ScriptBlock {param($inputObject) determineNSResolution $inputObject} -ArgumentList $jsonState
     }
     elseif ((Get-Job) -and ((Get-Job)[0].state -like "Completed")){
-        $msgbox.Text = (Receive-Job -Job $global:nsresjob).tostring()
+        Receive-Job -job $global:nsresjob -OutVariable newState
+        $global:currentState = $newState[0]
+        write-host $newState[1].length
+        write-host $newState[1]
+        write-host $newState[1].gettype()
+        foreach($newip in $newState[1]){
+            write-host $ipcounter
+            $ipcounter +=1
+            $newIPObject = [trackedIP]::new()
+            write-host ($newIPObject | get-member)
+            $newIPObject.isResolvingFWD = $True
+            $newIPObject.lastPing = "never"
+            $newIPObject.lastResFWD = (Get-Date -format "hh:mmtt")
+            $newIPObject.ip = $newip
+            $global:currentState.ipList += $newIPObject
+        }
+        Remove-Job -job $global:nsresjob
+        formatOutput($global:currentState)
+        statusUpdate($global:currentState)
     }
-    
+    elseif ((Get-Job)[0].state -notlike "Running"){
+        Remove-Job -job $global:nsresjob
+    }
 })
-$timer.Enabled = $False
+$timer.enabled = $false
 
+#default values for ease of testing
+#$usernameTBox.Text = "wm"
+#$hostnameTBox.Text = "lap402216"
+#$ipTBox.Text = "1.3.3.7"
 ###Display window
-
-
 $form0.ShowDialog()
