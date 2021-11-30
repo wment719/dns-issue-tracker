@@ -35,20 +35,15 @@ function determineNSResolution($inputState) {
     $newIPs = @()
     $lookupResults = (Resolve-DnsName $modifiedState.targetMachine)
     foreach ($previouslySeenIP in $modifiedState.ipList){
-        write-host $previouslySeenIP.gettype()
-        write-host $previouslySeenIP
         $previouslySeenIP.isResolvingFWD = $false
     }
     foreach ($record in $lookupResults){
         if($record.Type -eq 'A'){
-            write-host ($record.IPAddress + " a record")
             $unique = $true
             foreach ($previouslySeenIP in $modifiedState.ipList){
-                write-host ($previouslySeenIP.ip + " seen prior")
                 if ($record.IPAddress -eq $previouslySeenIP.ip){
-                    write-host "wewaszhere3"
                     $previouslySeenIP.isResolvingFWD = $True
-                    $previouslySeenIP.lastResFWD = (Get-Date -DisplayHint Time).tostring()
+                    $previouslySeenIP.lastResFWD = (Get-Date -format "hh:mmtt")
                     $unique = $false
                 }
             }
@@ -62,13 +57,13 @@ function determineNSResolution($inputState) {
         if ($previouslySeenIP.isResolvingFWD -or ($previouslySeenIP.ip -eq $modifiedState.expectedIP)){
             if (determinePinging($previouslySeenIP.ip)){
                 $previouslySeenIP.isPinging = $true
-                $previouslySeenIP.LastPing  = (Get-Date -DisplayHint Time).tostring()
+                $previouslySeenIP.LastPing  = (Get-Date -format "hh:mmtt")
             }
             else{$previouslySeenIP.isPinging = $false}
 
             #if(checkReverse($previouslySeenIP.ip, $modifiedState.targetMachine)){
             #    $previouslySeenIP.isResolvingREV = $true
-            #    $previouslySeenIP.lastResREV = (Get-Date -DisplayHint Time).tostring()
+            #    $previouslySeenIP.lastResREV = (Get-Date -format "hh:mmtt")
             #}
             #else {$previouslySeenIP.isResolvingREV = $false}
         }
@@ -80,17 +75,33 @@ function formatOutput($inputState) {
     $msgbox.Text = ""
     foreach ($trackedIP in $inputState.ipList){
         $line = ""
-        if($trackedIP.isResolvingFWD -or ($trackedIP.ip -eq $modifiedState.expectedIP)){
+        if($trackedIP.isResolvingFWD -or ($trackedIP.ip -eq $inputState.expectedIP)){
+            if($msgBox.Text){$line+="`n`n"}
             $line += ($trackedIP.ip+"  forward:")
             if($trackedIP.isResolvingFWD){$line += "GOOD"}
             else{$line += "BAD"}
-            $line += "(last "+$trackedIP.lastResFWD+")"
-            $line += " reverse: "
-            #if($trackedIP.isResolvingREV){$line += "GOOD"}
-            #else{$line += "BAD"}
-            #$line += "(last "+$trackedIP.lastResREV+")"
+            $line += "    (last resolved "+$trackedIP.lastResFWD+")"
+            $line += "`n    [last pinged - "+$trackedIP.LastPing+" ]"
+            $line += "`n reverse: "
+            if($trackedIP.isResolvingREV){$line += "GOOD"}
+            else{$line += "BAD"}
+            $line += "    (last "+$trackedIP.lastResREV+")"
             $msgBox.Text += $line
         }
+    }
+}
+
+function statusUpdate($inputState) {
+    $resolvingCount=0
+    $pingingCount=0
+    $resolveAndPingCount=0
+    foreach($trackedIP in $inputState.iplist){
+        if($trackedIP.isResolvingFWD){$resolvingCount += 1}
+        if($trackedIP.isPinging){$resolvingCount += 1}
+        if($trackedIP.isResolvingFWD -and $trackedIP.isPinging){$resolveAndPingCount += 1}
+    if($resolveAndPingCount){
+        $form0.BackColor="green"
+    }
     }
 }
 
@@ -104,9 +115,8 @@ $addFunctions= [scriptblock]::Create(@"
 #main script
 $global:currentState = [monitorState]::new()
 $global:currentState.operatorUsername = (whoami)[7..(whoami).length] -join ''
-$global:currentState.ipList = @()
 
-$timer.Interval = 1000
+$timer.Interval = 150
 $timer.Add_Tick({
     if (-not (Get-job)) {
         $jsonState=ConvertTo-Json $global:currentState 
@@ -115,17 +125,23 @@ $timer.Add_Tick({
     elseif ((Get-Job) -and ((Get-Job)[0].state -like "Completed")){
         Receive-Job -job $global:nsresjob -OutVariable newState
         $global:currentState = $newState[0]
+        write-host $newState[1].length
+        write-host $newState[1]
+        write-host $newState[1].gettype()
         foreach($newip in $newState[1]){
-            Write-Host $newip +" in new ip list"
+            write-host $ipcounter
+            $ipcounter +=1
             $newIPObject = [trackedIP]::new()
+            write-host ($newIPObject | get-member)
             $newIPObject.isResolvingFWD = $True
-            $newIPObject.lastResFWD = (Get-Date -DisplayHint Time).tostring()
+            $newIPObject.lastPing = "never"
+            $newIPObject.lastResFWD = (Get-Date -format "hh:mmtt")
             $newIPObject.ip = $newip
             $global:currentState.ipList += $newIPObject
         }
-        write-host "newstate should be set"
         Remove-Job -job $global:nsresjob
         formatOutput($global:currentState)
+        statusUpdate($global:currentState)
     }
     elseif ((Get-Job)[0].state -notlike "Running"){
         Remove-Job -job $global:nsresjob
@@ -134,8 +150,8 @@ $timer.Add_Tick({
 $timer.enabled = $false
 
 #default values for ease of testing
-$usernameTBox.Text = "wm"
-$hostnameTBox.Text = "lap402216"
-$ipTBox.Text = "1.3.3.7"
+#$usernameTBox.Text = "wm"
+#$hostnameTBox.Text = "lap402216"
+#$ipTBox.Text = "1.3.3.7"
 ###Display window
 $form0.ShowDialog()

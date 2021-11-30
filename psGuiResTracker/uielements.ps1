@@ -1,4 +1,5 @@
 Add-Type -assembly System.Windows.Forms
+$IPPattern = "^([1-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(\.([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])){3}$"
 
 
 $form0 = New-Object System.Windows.Forms.Form
@@ -65,6 +66,7 @@ $goButton.Add_Click({
     if(($nonEmptyFields -eq $inputFields.length) -and ($ipTBox.Text)){
         $global:currentState.targetUsername = $usernameTBox.text; $global:currentState.targetMachine = $hostnameTBox.Text; $global:currentState.expectedIP = $ipTBox.Text
         $form0.Text=$usernameTBox.Text+" at "+$hostnameTBox.Text+"  expected IP: "+$ipTBox.Text
+        $global:currentState.ipList += $global:currentState.expectedIP
         $timer.Enabled = $True
         $goButton.Text = "update"
     }
@@ -74,8 +76,8 @@ $form0.Controls.Add($goButton)
 $msgBox = New-Object System.Windows.Forms.Label
 $msgBox.Text = ""; $msgBox.AutoSize = $false
 $msgBox.Location = New-Object System.Drawing.Point(5, 85)
-$msgBox.Size = New-Object System.Drawing.Size(375,25)
-$msgBox.TextAlign ="MiddleCenter"
+$msgBox.Size = New-Object System.Drawing.Size(375,300)
+$msgBox.TextAlign ="TopCenter"
 $form0.Controls.Add($msgBox)
 
 
