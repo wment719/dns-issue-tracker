@@ -17,6 +17,7 @@ class monitorState {
     [string]$targetMachine
     [string]$expectedIP
     [string]$targetUsername
+    [hashtable]$state
 }
 function determinePinging($targetIP) {
     if ((test-connection $targetIP -count 1 -quiet) -or (test-connection $targetIP -count 1 -quiet)) {
@@ -84,30 +85,154 @@ function formatOutput($inputState) {
     }
 }
 
-function statusUpdate($inputState) {
-    $resolvingCount=0
-    $pingingCount=0
-    $resolveAndPingCount=0
-    foreach($trackedIP in $inputState.iplist){
-        if($trackedIP.isResolvingFWD){$resolvingCount += 1}
-        if($trackedIP.isPinging){$resolvingCount += 1}
-        if($trackedIP.isResolvingFWD -and $trackedIP.isPinging){$resolveAndPingCount += 1}
-    if($resolveAndPingCount){$form0.BackColor="green"    }
-    }
-}
 
+function statusUpdate($inputState) {
+    #
+
+    #
+    $resolvingCount=0; $pingingCount=0; $resolveAndPingCount=0
+    $expectedResolving = $false; $expectedPinging = $false
+    foreach($trackedIP in $inputState.iplist){
+        if($trackedIP.isResolvingFWD){
+            $resolvingCount += 1
+            if($trackedIP.ip -eq $inputState.expectedIP){$expectedResolving = $true}
+        }
+        if($trackedIP.isPinging){
+            $pingingCount += 1
+            if($trackedIP.ip -eq $inputState.expectedIP){$expectedPinging = $true}
+        }
+        if($trackedIP.isResolvingFWD -and $trackedIP.isPinging){$resolveAndPingCount += 1}
+    }
+    $message=$inputState.targetUsername+"@  "+$inputState.targetMachine+"`n`n"
+    if($resolvingCount -eq 0){
+        if($expectedPinging){
+            $form0.BackColor="#cccc44"#yellow
+            $message+="not resolving ANY forward. Expected IP pinging.`n`n"
+        } 
+        else{
+            $form0.BackColor="#ff3535"#ltred
+            $message+="not resolving ANY forward.`n`n"
+        } 
+    }
+    elseif($resolvingCount -eq 1){
+        if($expectedResolving){
+            if($expectedPinging){
+                $form0.BackColor="#30d030"# green
+                $message+="Pinging Expected`n`n"
+            } 
+
+            else{
+                $form0.BackColor="#e060ff"#pinkish
+                $message+="Resolving expected, not pinging.`n`n"
+            } 
+        }
+        else{
+            if($expectedPinging){
+                if($pingingCount -gt 1){
+                    $form0.BackColor="#30a0e0" #blue
+                    $message+="Resolving to unexpected. Expected and other IPs pinging`n`n"
+                }
+                elseif($pingingCount -eq 0){
+                    $form0.BackColor="#ff3535" #ltred
+                    $message+="Resolving to unexpected, not pinging any`n`n"
+                }
+                else{
+                    $form0.BackColor="#cccc44"#yellow
+                    $message+="Resolving to unexpected, pinging expected`n`n"
+                } 
+            }
+            else{
+                if($pingingCount){
+                    $form0.BackColor="#ff8010"#orange
+                    $message+="Resolving and pinging unexpected. expected not pinging.`n`n"
+                } 
+                else{
+                    $form0.BackColor="#ff3535"#ltred
+                    $message+="Resolving unexpected not pinging any.`n`n"
+                } 
+            }
+        } 
+    }
+    elseif($resolvingCount -gt 1){
+        if($expectedResolving){
+            if($expectedPinging){
+                if($pingingCount -gt 1){
+                    $form0.BackColor="#30a0e0"#blue
+                    $message+="Expected resolving, pinging expected and others`n`n"
+                } 
+                else{
+                    $form0.BackColor="#cccc44"#yellow
+                    $message+="Expected resolving and pinging. Others resolving. `n`n"
+                }
+            }
+            else{
+                if($pingingCount){
+                    $form0.BackColor="#30a0e0"
+                    $message+="Expected resolving but not pinging. Resolving and pinging other(s). `n`n"
+                } #blue
+                else{
+                    $form0.BackColor="#35ff35"
+                    $message+="Expected and others resolving but none pinging`n`n"
+                }  #ltred
+            }
+        }
+        else{
+            if($expectedPinging){
+                if($pingingCount -eq 1){
+                    $form0.BackColor="#cccc44"
+                    $message+="Unexpected resolving but not pinging. Expected resolving and pinging. `n`n"
+                } #yellow
+                elseif($pingingCount -gt 1){
+                    $form0.BackColor="#30a0e0"
+                    $message+="Resolving unexpedcted, pinging unexpected and expected`n`n"
+                }#blue
+            }
+            else{
+                if($pingingCount){
+                    $form0.BackColor="#30a0e0"
+                    $message+="Resolving and pinging unexpected`n`n"
+
+                }#blue
+                else{
+                    $form0.BackColor="#35ff35"
+                    $message+="Resolving unexpected. Not pinging any. `n`n"
+
+                }#ltred
+            }
+        }
+    }
+    
+    $msgbox.text = ($message+$msgbox.text) 
+    if($message -ne $inputState.state.state){
+        $inputState.state.bounceCounter += 1
+        if($inputState.state.bounceCounter -gt $inputState.state.bounceThreshold){
+            if(-not ($inputState.state.state -eq "First run")){msg $inputState.operatorUsername ($message +"`nOld Status: "+$inputState.state.state)}
+            $inputState.state.state=$message
+            $inputState.state.bounceCounter = 0
+        }
+    }
+    elseif($message -eq $inputState.state.state){
+        $inputState.state.bounceCounter=0
+    }
+
+}
 
 $addFunctions= [scriptblock]::Create(@"
     function determinePinging { $Function:determinePinging }
     function determineNSResolution { $Function:determineNSResolution }
 "@)
-
-#main script
+#class & function definitions complete
+#begin main script
 $global:currentState = [monitorState]::new()
 $global:currentState.operatorUsername = ((whoami) -split "\\")[1]
-(whoami)[7..(whoami).length] -join ''
+$global:currentState.state=@{
+    time = (Get-Date -format "hh:mmtt")
+    state = "First run"
+    bounceThreshold = 5
+    bounceCounter = 0
+}
 
-$timer.Interval = 150
+$timer.Interval = 50
 $timer.Add_Tick({
     if (-not $global:currentState.ipList){
         $newIPObject = [trackedIP]::new()
