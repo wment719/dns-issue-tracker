@@ -49,7 +49,6 @@ $goButton.Text = "Start"
 $goButton.Add_Click({
     $inputFields = @($usernameTBox.Text, $hostnameTBox.Text, $ipTBox.Text)
     $nonEmptyFields = 0
-    $goodIP = $false
     $errMsg=""
     foreach ($text in $inputFields){
         if ($text){$nonEmptyFields+=1}

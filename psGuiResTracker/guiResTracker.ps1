@@ -1,5 +1,5 @@
-#Import-Module -Force $PSScriptRoot\uielements.ps1
-Import-Module -Force "C:\Users\wmiller\OneDrive - Ent Credit Union\utilities\uielements.ps1"
+Import-Module -Force $PSScriptRoot\uielements.ps1
+#Import-Module -Force "C:\Users\wmiller\OneDrive - Ent Credit Union\utilities\uielements.ps1"
 $IPPattern = "^([1-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(\.([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])){3}$"
 
 class trackedIP {
@@ -24,19 +24,11 @@ function determinePinging($targetIP) {
     }
     else{return $false}
 }
-function checkReverse($ipToCheck, $correctHostnmae) {
-    if((Resolve-DnsName $ipToCheck).NameHost.tolower().contains($correctHostnmae.ToLower())){
-        return $true
-    }
-    else{return $false}
-}
 function determineNSResolution($inputState) {
     $modifiedState = ConvertFrom-Json $inputState
     $newIPs = @()
     $lookupResults = (Resolve-DnsName $modifiedState.targetMachine)
     foreach ($previouslySeenIP in $modifiedState.ipList){
-        write-host ($previouslySeenIP.gettype())
-        write-host $previouslySeenIP
         $previouslySeenIP.isResolvingFWD = $false
     }
     foreach ($record in $lookupResults){
@@ -62,12 +54,11 @@ function determineNSResolution($inputState) {
                 $previouslySeenIP.LastPing  = (Get-Date -format "hh:mmtt")
             }
             else{$previouslySeenIP.isPinging = $false}
-
-            #if(checkReverse($previouslySeenIP.ip, $modifiedState.targetMachine)){
-            #    $previouslySeenIP.isResolvingREV = $true
-            #    $previouslySeenIP.lastResREV = (Get-Date -format "hh:mmtt")
-            #}
-            #else {$previouslySeenIP.isResolvingREV = $false}
+            if((Resolve-DnsName $previouslySeenIP.ip).NameHost.tolower().contains($modifiedState.targetMachine.ToLower())){
+                $previouslySeenIP.isResolvingREV = $true
+                $previouslySeenIP.lastResREV = (Get-Date -format "hh:mmtt")
+            }
+            else {$previouslySeenIP.isResolvingREV = $false}
         }
     }
 
@@ -101,9 +92,7 @@ function statusUpdate($inputState) {
         if($trackedIP.isResolvingFWD){$resolvingCount += 1}
         if($trackedIP.isPinging){$resolvingCount += 1}
         if($trackedIP.isResolvingFWD -and $trackedIP.isPinging){$resolveAndPingCount += 1}
-    if($resolveAndPingCount){
-        $form0.BackColor="green"
-    }
+    if($resolveAndPingCount){$form0.BackColor="green"    }
     }
 }
 
@@ -111,12 +100,12 @@ function statusUpdate($inputState) {
 $addFunctions= [scriptblock]::Create(@"
     function determinePinging { $Function:determinePinging }
     function determineNSResolution { $Function:determineNSResolution }
-    function checkReverse { $Function:checkReverse }
 "@)
 
 #main script
 $global:currentState = [monitorState]::new()
-$global:currentState.operatorUsername = (whoami)[7..(whoami).length] -join ''
+$global:currentState.operatorUsername = ((whoami) -split "\\")[1]
+(whoami)[7..(whoami).length] -join ''
 
 $timer.Interval = 150
 $timer.Add_Tick({
@@ -124,6 +113,7 @@ $timer.Add_Tick({
         $newIPObject = [trackedIP]::new()
         $newIPObject.lastPing = "never"
         $newIPObject.lastResFWD = "never"
+        $newIPObject.lastResREV = "never"
         $newIPObject.ip = $global:currentState.expectedIP
         $global:currentState.ipList += $newIPObject
     }
@@ -134,9 +124,6 @@ $timer.Add_Tick({
     elseif ((Get-Job) -and ((Get-Job)[0].state -like "Completed")){
         Receive-Job -job $global:nsresjob -OutVariable newState
         $global:currentState = $newState[0]
-        write-host $newState[1].length
-        write-host $newState[1]
-        write-host $newState[1].gettype()
         foreach($newip in $newState[1]){
             $newIPObject = [trackedIP]::new()
             $newIPObject.isResolvingFWD = $True
