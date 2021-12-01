@@ -66,7 +66,6 @@ $goButton.Add_Click({
     if(($nonEmptyFields -eq $inputFields.length) -and ($ipTBox.Text)){
         $global:currentState.targetUsername = $usernameTBox.text; $global:currentState.targetMachine = $hostnameTBox.Text; $global:currentState.expectedIP = $ipTBox.Text
         $form0.Text=$usernameTBox.Text+" at "+$hostnameTBox.Text+"  expected IP: "+$ipTBox.Text
-        $global:currentState.ipList += $global:currentState.expectedIP
         $timer.Enabled = $True
         $goButton.Text = "update"
     }
