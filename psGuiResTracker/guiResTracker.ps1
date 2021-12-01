@@ -35,6 +35,8 @@ function determineNSResolution($inputState) {
     $newIPs = @()
     $lookupResults = (Resolve-DnsName $modifiedState.targetMachine)
     foreach ($previouslySeenIP in $modifiedState.ipList){
+        write-host ($previouslySeenIP.gettype())
+        write-host $previouslySeenIP
         $previouslySeenIP.isResolvingFWD = $false
     }
     foreach ($record in $lookupResults){
@@ -118,6 +120,13 @@ $global:currentState.operatorUsername = (whoami)[7..(whoami).length] -join ''
 
 $timer.Interval = 150
 $timer.Add_Tick({
+    if (-not $global:currentState.ipList){
+        $newIPObject = [trackedIP]::new()
+        $newIPObject.lastPing = "never"
+        $newIPObject.lastResFWD = "never"
+        $newIPObject.ip = $global:currentState.expectedIP
+        $global:currentState.ipList += $newIPObject
+    }
     if (-not (Get-job)) {
         $jsonState=ConvertTo-Json $global:currentState 
         $global:nsresjob = Start-Job -InitializationScript $addFunctions -ScriptBlock {param($inputObject) determineNSResolution $inputObject} -ArgumentList $jsonState
@@ -129,10 +138,7 @@ $timer.Add_Tick({
         write-host $newState[1]
         write-host $newState[1].gettype()
         foreach($newip in $newState[1]){
-            write-host $ipcounter
-            $ipcounter +=1
             $newIPObject = [trackedIP]::new()
-            write-host ($newIPObject | get-member)
             $newIPObject.isResolvingFWD = $True
             $newIPObject.lastPing = "never"
             $newIPObject.lastResFWD = (Get-Date -format "hh:mmtt")
