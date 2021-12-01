@@ -85,11 +85,7 @@ function formatOutput($inputState) {
     }
 }
 
-
 function statusUpdate($inputState) {
-    #
-
-    #
     $resolvingCount=0; $pingingCount=0; $resolveAndPingCount=0
     $expectedResolving = $false; $expectedPinging = $false
     foreach($trackedIP in $inputState.iplist){
@@ -234,7 +230,7 @@ $global:currentState.state=@{
 
 $timer.Interval = 50
 $timer.Add_Tick({
-    if (-not $global:currentState.ipList){
+    if (-not $global:currentState.ipList){ #instanciate and add expected ip if ip list is empty (firstrun)
         $newIPObject = [trackedIP]::new()
         $newIPObject.lastPing = "never"
         $newIPObject.lastResFWD = "never"
@@ -267,9 +263,5 @@ $timer.Add_Tick({
 })
 $timer.enabled = $false
 
-#default values for ease of testing
-#$usernameTBox.Text = "wm"
-#$hostnameTBox.Text = "lap402216"
-#$ipTBox.Text = "1.3.3.7"
 ###Display window
 $form0.ShowDialog()
